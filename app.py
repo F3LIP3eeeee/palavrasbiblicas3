@@ -1,44 +1,48 @@
-import os
-
-from flask import Flask, render_template, request
+from flask import Flask, request, render_template
 import requests
+import json
 
 app = Flask(__name__)
 
-# Token do Hugging Face
-HUGGING_FACE_TOKEN = "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"
+API_URL = "http://186.215.82.60:5009/process"  # URL da API externa
+API_MK = "FPJ01072008"  # Chave para autenticação na API
 
-# Função para gerar conselho
-def gerar_conselho(texto_usuario):
-    url = "https://api-inference.huggingface.co/models/bigscience/bloomz-560m"
-    headers = {"Authorization": f"Bearer {HUGGING_FACE_TOKEN}"}
-    payload = {"inputs": f"Conselho para a situação: {texto_usuario}"}
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code == 200:
-        return response.json()[0]["generated_text"]
-    return "Não foi possível gerar o conselho no momento."
-
-# Função para buscar versículo bíblico
-def buscar_versiculo():
-    url = "https://www.abibliadigital.com.br/api/verses/nvi/random"
-    response = requests.get(url)
-    if response.status_code == 200:
-        versiculo = response.json()
-        return f"{versiculo['text']} - {versiculo['book']['name']} {versiculo['chapter']}:{versiculo['number']}"
-    return "Não foi possível buscar um versículo no momento."
+def chamar_api_externa(prompt):
+    """
+    Faz a chamada à API externa para obter o conselho e versículos.
+    """
+    try:
+        headers = {"Content-Type": "application/json"}
+        payload = {"prompt": prompt, "mk": API_MK}
+        
+        response = requests.post(API_URL, headers=headers, data=json.dumps(payload))
+        
+        if response.status_code == 200:
+            dados = response.json()  # Parse do JSON retornado pela API
+            return dados.get("response", {})
+        else:
+            return {"conselho": "Erro ao obter conselho", "versiculos": []}
+    except Exception as e:
+        return {"conselho": "Erro ao conectar à API", "versiculos": []}
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     conselho = ""
-    versiculo = ""
+    versiculos = []
+    
     if request.method == "POST":
-        texto_usuario = request.form["texto"]
-        conselho = gerar_conselho(texto_usuario)
-        versiculo = buscar_versiculo()
-    return render_template("index.html", conselho=conselho, versiculo=versiculo)
+        prompt_usuario = request.form["texto"]
+        
+        # Chamar a API externa com o prompt do usuário
+        resultado = chamar_api_externa(prompt_usuario)
+        
+        # Processar os resultados
+        if resultado:
+            resposta = json.loads(resultado)  # Converter o texto JSON para um dicionário
+            conselho = resposta.get("conselho", "Conselho não disponível")
+            versiculos = resposta.get("versiculos", [])
+    
+    return render_template("index.html", conselho=conselho, versiculos=versiculos)
 
 if __name__ == "__main__":
-
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
+    app.run(debug=True)
