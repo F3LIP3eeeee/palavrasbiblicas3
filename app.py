@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template
 import requests
 import json
+import os
 
 app = Flask(__name__)
 
@@ -45,4 +46,6 @@ def index():
     return render_template("index.html", conselho=conselho, versiculos=versiculos)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Corrigindo para plataformas como Render ou Railway
+    port = int(os.environ.get("PORT", 5000))  # Use a porta fornecida pela variável de ambiente ou 5000
+    app.run(host="0.0.0.0", port=port)
